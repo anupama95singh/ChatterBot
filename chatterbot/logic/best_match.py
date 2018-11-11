@@ -12,6 +12,8 @@ class BestMatch(LogicAdapter):
         Takes a statement string and a list of statement strings.
         Returns the closest matching statement from the list.
         """
+        self.chatbot.logger.info('Beginning search for close text match')
+
         statement_list = self.chatbot.storage.get_response_statements(
             text=input_statement.text,
             page_size=self.search_page_size
@@ -20,6 +22,8 @@ class BestMatch(LogicAdapter):
         closest_match = input_statement
         closest_match.confidence = 0
 
+        self.chatbot.logger.info('Processing search results')
+
         # Find the closest matching known statement
         for statement in statement_list:
             confidence = self.compare_statements(input_statement, statement)
@@ -27,6 +31,9 @@ class BestMatch(LogicAdapter):
             if confidence > closest_match.confidence:
                 statement.confidence = confidence
                 closest_match = statement
+                self.chatbot.logger.info('Similar text found: {} {}'.format(
+                    closest_match.text, confidence
+                ))
 
             # Stop searching if a match that is close enough is found
             if closest_match.confidence >= self.maximum_similarity_threshold:
@@ -46,7 +53,7 @@ class BestMatch(LogicAdapter):
         # Select the closest match to the input statement
         closest_match = self.get(input_statement)
         self.chatbot.logger.info('Using "{}" as a close match to "{}"'.format(
-            input_statement.text, closest_match.text
+            closest_match.text, input_statement.text
         ))
 
         # Get all statements that are in response to the closest match

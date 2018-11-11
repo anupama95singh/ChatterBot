@@ -313,42 +313,40 @@ class SQLStorageAdapter(StorageAdapter):
         in_response_to field. Otherwise, the logic adapter may find a closest
         matching statement that does not have a known response.
         """
-        from sqlalchemy import func, or_
+        from sqlalchemy import or_
 
         Statement = self.get_model('statement')
 
         session = self.Session()
 
-        total_statements = session.query(func.count(Statement.id)).scalar()
-
-        start = 0
-        stop = min(page_size, total_statements)
+        bigram_list = self.stemmer.get_bigram_pair_string(text or '').split(' ')
 
         or_query = [
-            Statement.search_in_response_to.contains(trigram) for trigram in self.stemmer.stem(text or '').split(' ')
+            Statement.search_in_response_to.contains(bigram) for bigram in bigram_list
         ]
 
-        while stop <= total_statements:
+        print('BEFORE OR')
 
-            statement_set = session.query(Statement).filter(
+        statement_set = session.query(Statement).filter(
+            Statement.in_response_to.isnot(None),
+            or_(*or_query)
+        )
+
+        print('AFTER OR')
+
+        response_statements = set(
+            statement.in_response_to for statement in statement_set
+        )
+
+        print('AFTER SET. Length of statement set =', len(response_statements))
+
+        return [
+            statement for statement in session.query(Statement).filter(
                 Statement.in_response_to.isnot(None),
-                or_(*or_query)
-            ).slice(start, stop)
-
-            start += page_size
-            stop += page_size
-
-            response_statements = set(
-                statement.in_response_to for statement in statement_set
-            )
-
-            for statement in session.query(Statement).filter(
                 Statement.text.in_(response_statements),
                 ~Statement.persona.startswith('bot:')
-            ):
-                yield self.model_to_object(statement)
-
-        session.close()
+            )
+        ]
 
     def drop(self):
         """
